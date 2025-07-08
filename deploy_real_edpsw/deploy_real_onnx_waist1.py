@@ -24,7 +24,7 @@ from unitree_sdk2py.utils.crc import CRC
 from common.command_helper import create_damping_cmd, create_zero_cmd, init_cmd_hg, init_cmd_go, MotorMode
 from common.rotation_helper import get_gravity_orientation, transform_imu_data
 from common.remote_controller import RemoteController, KeyMap
-from config import Config
+from config_waist1 import Config
 import sys
 sys.path.append("/home/zy/Deploy_g1/scripts")
 from scripts.joint_select_reorder import extend_joint, obs_match
@@ -151,8 +151,8 @@ class Controller:
         num_step = int(total_time / self.config.control_dt)
         
         dof_idx = self.config.action_joint2motor_idx + self.config.fixed_joint2motor_idx
-        kps = self.config.kps_start + self.config.fixed_kps
-        kds = self.config.kds_start + self.config.fixed_kds
+        kps = self.config.kps_waist1 + self.config.fixed_kps
+        kds = self.config.kds_waist1 + self.config.fixed_kds
         default_pos = np.concatenate((self.config.default_start_angles, self.config.fixed_target), axis=0)
         dof_size = len(dof_idx)
         
@@ -171,8 +171,8 @@ class Controller:
                 self.low_cmd.motor_cmd[motor_idx].q = init_dof_pos[j] * (1 - alpha) + target_pos * alpha
                 # self.low_cmd.motor_cmd[motor_idx].q = target_pos * (1 - alpha)
                 self.low_cmd.motor_cmd[motor_idx].qd = 0
-                self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[j]
-                self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[j]
+                self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_waist1[j]
+                self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_waist1[j]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
             self.resort_pub()
             # for i in range(35):
@@ -189,8 +189,8 @@ class Controller:
                 self.low_cmd.motor_cmd[motor_idx].mode = 1
                 self.low_cmd.motor_cmd[motor_idx].q = self.config.default_start_angles[i]
                 self.low_cmd.motor_cmd[motor_idx].qd = 0
-                self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[i]
-                self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[i]
+                self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_waist1[i]
+                self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_waist1[i]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
             for i in range(len(self.config.fixed_joint2motor_idx)):
                 motor_idx = self.config.fixed_joint2motor_idx[i]
@@ -268,14 +268,14 @@ class Controller:
         num_actions = self.config.num_actions
 
 
-        print("Shapes of arrays to concatenate:")
-        print(f"self.action shape: {np.array(self.action).shape}")
-        print(f"base_ang_vel shape: {np.array(base_ang_vel).shape}")
-        print(f"dof_pos shape: {np.array(dof_pos).shape}")
-        print(f"dof_vel shape: {np.array(dof_vel).shape}")
-        # print(f"history_obs_buf shape: {np.array(history_obs_buf).shape}")
-        print(f"projected_gravity shape: {np.array(projected_gravity).shape}")
-        print(f"[self.ref_motion_phase] shape: {np.array([self.ref_motion_phase]).shape}")
+        # print("Shapes of arrays to concatenate:")
+        # print(f"self.action shape: {np.array(self.action).shape}")
+        # print(f"base_ang_vel shape: {np.array(base_ang_vel).shape}")
+        # print(f"dof_pos shape: {np.array(dof_pos).shape}")
+        # print(f"dof_vel shape: {np.array(dof_vel).shape}")
+        # # print(f"history_obs_buf shape: {np.array(history_obs_buf).shape}")
+        # print(f"projected_gravity shape: {np.array(projected_gravity).shape}")
+        # print(f"[self.ref_motion_phase] shape: {np.array([self.ref_motion_phase]).shape}")
         
 
         history_obs_buf = np.concatenate((self.action_buf, self.ang_vel_buf, self.dof_pos_buf, self.dof_vel_buf, self.proj_g_buf, self.ref_motion_phase_buf), axis=-1, dtype=np.float32)
@@ -344,8 +344,8 @@ class Controller:
             self.low_cmd.motor_cmd[motor_idx].mode = 1
             self.low_cmd.motor_cmd[motor_idx].q = target_dof_pos[i]
             self.low_cmd.motor_cmd[motor_idx].qd = 0
-            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[i]
-            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[i]
+            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_waist1[i]
+            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_waist1[i]
             self.low_cmd.motor_cmd[motor_idx].tau = 0
 
 

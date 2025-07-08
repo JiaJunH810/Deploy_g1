@@ -24,7 +24,7 @@ from unitree_sdk2py.utils.crc import CRC
 from common.command_helper import create_damping_cmd, create_zero_cmd, init_cmd_hg, init_cmd_go, MotorMode
 from common.rotation_helper import get_gravity_orientation, transform_imu_data
 from common.remote_controller import RemoteController, KeyMap
-from config import Config
+from config_waist3 import Config
 
 from scripts.joint_select_reorder import extend_joint, obs_match
 from scripts.elec_machinary_trans import oneWaist_2_threeWaist, threeWaist_2_oneWaist
@@ -252,40 +252,6 @@ class Controller:
             waist_yaw_omega = self.low_state.motor_state[self.config.fixed_joint2motor_idx[0]].dq
             quat, ang_vel = transform_imu_data(waist_yaw=waist_yaw, waist_yaw_omega=waist_yaw_omega, imu_quat=quat, imu_omega=ang_vel)
 
-        # create observation
-        # gravity_orientation = get_gravity_orientation(quat)
-
-        # qj_obs = self.qj.copy()
-        # dqj_obs = self.dqj.copy()
-
-        # qj_obs = (qj_obs - self.config.default_angles) * self.config.dof_pos_scale
-        # dqj_obs = dqj_obs * self.config.dof_vel_scale
-        # ang_vel = ang_vel * self.config.ang_vel_scale
-
-        # period = 0.8
-        # count = self.counter * self.config.control_dt
-        # phase = count % period / period
-        # sin_phase = np.sin(2 * np.pi * phase)
-        # cos_phase = np.cos(2 * np.pi * phase)
-
-        # self.cmd[0] = self.remote_controller.ly
-        # self.cmd[1] = self.remote_controller.lx * -1
-        # self.cmd[2] = self.remote_controller.rx * -1
-
-        # num_actions = self.config.num_actions
-
-        # self.obs[:3] = ang_vel
-        # self.obs[3:6] = gravity_orientation
-        # self.obs[6:9] = self.cmd * self.config.cmd_scale * self.config.max_cmd
-        # self.obs[9 : 9 + num_actions] = qj_obs
-        # self.obs[9 + num_actions : 9 + num_actions * 2] = dqj_obs
-        # self.obs[9 + num_actions * 2 : 9 + num_actions * 3] = self.action
-        # self.obs[9 + num_actions * 3] = sin_phase
-        # self.obs[9 + num_actions * 3 + 1] = cos_phase
-
-        # Get the action from the policy network
-        # obs_tensor = torch.from_numpy(self.obs).unsqueeze(0)
-
         
         qj = self.qj.copy()    
         dqj = self.dqj.copy()   
@@ -305,14 +271,14 @@ class Controller:
         num_actions = self.config.num_actions
 
 
-        print("Shapes of arrays to concatenate:")
-        print(f"self.action shape: {np.array(self.action).shape}")
-        print(f"base_ang_vel shape: {np.array(base_ang_vel).shape}")
-        print(f"dof_pos shape: {np.array(dof_pos).shape}")
-        print(f"dof_vel shape: {np.array(dof_vel).shape}")
-        # print(f"history_obs_buf shape: {np.array(history_obs_buf).shape}")
-        print(f"projected_gravity shape: {np.array(projected_gravity).shape}")
-        print(f"[self.ref_motion_phase] shape: {np.array([self.ref_motion_phase]).shape}")
+        # print("Shapes of arrays to concatenate:")
+        # print(f"self.action shape: {np.array(self.action).shape}")
+        # print(f"base_ang_vel shape: {np.array(base_ang_vel).shape}")
+        # print(f"dof_pos shape: {np.array(dof_pos).shape}")
+        # print(f"dof_vel shape: {np.array(dof_vel).shape}")
+        # # print(f"history_obs_buf shape: {np.array(history_obs_buf).shape}")
+        # print(f"projected_gravity shape: {np.array(projected_gravity).shape}")
+        # print(f"[self.ref_motion_phase] shape: {np.array([self.ref_motion_phase]).shape}")
         
         # oneWaist_2_threeWaist(dof_pos)
         # oneWaist_2_threeWaist(dof_vel)
@@ -325,8 +291,7 @@ class Controller:
         try:
             # obs_buf = np.concatenate((self.action, base_ang_vel.flatten(), dof_pos, dof_vel, history_obs_buf, projected_gravity, [self.ref_motion_phase]), axis=-1, dtype=np.float32)
             #### dev ####
-            action_bak = obs_match(self.action)
-            obs_buf = np.concatenate((action_bak, base_ang_vel.flatten(), dof_pos_bak, dof_vel_bak, history_obs_buf, projected_gravity, [self.ref_motion_phase]), axis=-1, dtype=np.float32)
+            obs_buf = np.concatenate((self.action, base_ang_vel.flatten(), dof_pos_bak, dof_vel_bak, history_obs_buf, projected_gravity, [self.ref_motion_phase]), axis=-1, dtype=np.float32)
             #### dev ####
         except ValueError as e:
             print(f"Concatenation failed with error: {e}")
@@ -347,24 +312,25 @@ class Controller:
         self.proj_g_buf = np.concatenate((projected_gravity, self.proj_g_buf[:-3] ), axis=-1, dtype=np.float32)
         # self.dof_pos_buf = np.concatenate((dof_pos, self.dof_pos_buf[:-num_actions] ), axis=-1, dtype=np.float32)
         # self.dof_vel_buf = np.concatenate((dof_vel, self.dof_vel_buf[:-num_actions] ), axis=-1, dtype=np.float32)
-        # self.action_buf = np.concatenate((self.action, self.action_buf[:-num_actions] ), axis=-1, dtype=np.float32)
+        self.action_buf = np.concatenate((self.action, self.action_buf[:-num_actions] ), axis=-1, dtype=np.float32)
         #### dev ####
         self.dof_pos_buf = np.concatenate((dof_pos_bak, self.dof_pos_buf[:-num_actions] ), axis=-1, dtype=np.float32)
         self.dof_vel_buf = np.concatenate((dof_vel_bak, self.dof_vel_buf[:-num_actions] ), axis=-1, dtype=np.float32)
-        action_bak = obs_match(self.action)
-        self.action_buf = np.concatenate((action_bak, self.action_buf[:-num_actions] ), axis=-1, dtype=np.float32)
         #### dev ####
         self.ref_motion_phase_buf = np.concatenate(([self.ref_motion_phase], self.ref_motion_phase_buf[:-1] ), axis=-1, dtype=np.float32)                
         
         
-        self.read_data()
+        # self.read_data()
         obs_tensor = torch.from_numpy(obs_buf).unsqueeze(0).cpu().numpy()
         self.action = np.squeeze(self.ort_session.run(None, {self.input_name: obs_tensor})[0])
-        
-        print(f"left ankle pitch: {self.action[4]}")
-        print(f"left ankle roll: {self.action[5]}")
-        print(f"right ankle pitch: {self.action[10]}")
-        print(f"right ankle roll: {self.action[11]}")
+        #### dev ####
+        self.action[13] = 0.0
+        self.action[14] = 0.0
+        #### dev ####
+        # print(f"left ankle pitch: {self.action[4]}")
+        # print(f"left ankle roll: {self.action[5]}")
+        # print(f"right ankle pitch: {self.action[10]}")
+        # print(f"right ankle roll: {self.action[11]}")
 
         # self.action[4] = 0
         # self.action[5] = 0
@@ -376,10 +342,16 @@ class Controller:
         # threeWaist_2_oneWaist(self.action)
 
         # transform action to target_dof_pos
-        target_dof_pos = self.config.default_waist3_angles + self.action * self.config.action_scale
         #### dev ####
-        target_dof_pos = extend_joint(target_dof_pos)
+        action_bak = extend_joint(self.action)
+        print("action_pre")
+        print(self.action)
+        print("action_post")
+        print(action_bak)
+        target_dof_pos = self.config.default_waist1_angles + action_bak * self.config.action_scale
         #### dev ####
+
+        # target_dof_pos = self.config.default_waist3_angles + self.action * self.config.action_scale
         # print("#" * 100)
         # print(target_dof_pos.shape)
         # target_dof_pos[4] = 0
@@ -463,11 +435,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("net", type=str, help="network interface")
-    parser.add_argument("config", type=str, help="config file name in the configs folder", default="/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist1.yaml")
+    parser.add_argument("config", type=str, help="config file name in the configs folder", default="/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist3.yaml")
     args = parser.parse_args()
 
     # Load config
-    config_path = "/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist1.yaml" #args.config
+    config_path = "/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist3.yaml" #args.config
     config = Config(config_path)
 
     # Initialize DDS communication
