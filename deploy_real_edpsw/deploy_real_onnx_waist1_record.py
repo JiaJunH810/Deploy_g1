@@ -182,7 +182,7 @@ class Controller:
                 self.low_cmd.motor_cmd[motor_idx].mode = 1
                 self.low_cmd.motor_cmd[motor_idx].q = init_dof_pos[j] * (1 - alpha) + target_pos * alpha
                 # self.low_cmd.motor_cmd[motor_idx].q = target_pos * (1 - alpha)
-                self.low_cmd.motor_cmd[motor_idx].qd = 0
+                self.low_cmd.motor_cmd[motor_idx].dq = 0
                 self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[j]
                 self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[j]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
@@ -200,14 +200,14 @@ class Controller:
                 motor_idx = self.config.action_joint2motor_idx[i]
                 self.low_cmd.motor_cmd[motor_idx].mode = 1
                 self.low_cmd.motor_cmd[motor_idx].q = self.config.default_start_angles[i]
-                self.low_cmd.motor_cmd[motor_idx].qd = 0
+                self.low_cmd.motor_cmd[motor_idx].dq = 0
                 self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[i]
                 self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[i]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
             for i in range(len(self.config.fixed_joint2motor_idx)):
                 motor_idx = self.config.fixed_joint2motor_idx[i]
                 self.low_cmd.motor_cmd[motor_idx].q = self.config.fixed_target[i]
-                self.low_cmd.motor_cmd[motor_idx].qd = 0
+                self.low_cmd.motor_cmd[motor_idx].dq = 0
                 self.low_cmd.motor_cmd[motor_idx].kp = self.config.fixed_kps[i]
                 self.low_cmd.motor_cmd[motor_idx].kd = self.config.fixed_kds[i]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
@@ -372,9 +372,9 @@ class Controller:
 
             self.low_cmd.motor_cmd[motor_idx].mode = 1
             self.low_cmd.motor_cmd[motor_idx].q = target_dof_pos[i]
-            #self.low_cmd.motor_cmd[motor_idx].qd = 0
+            #self.low_cmd.motor_cmd[motor_idx].dq = 0
 
-            #replaced qd with dq
+            #replaced dq with dq
             self.low_cmd.motor_cmd[motor_idx].dq = 0
 
             self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[i]
@@ -388,9 +388,9 @@ class Controller:
         for i in range(len(self.config.fixed_joint2motor_idx)):
             motor_idx = self.config.fixed_joint2motor_idx[i]
             self.low_cmd.motor_cmd[motor_idx].q = self.config.fixed_target[i]
-            #self.low_cmd.motor_cmd[motor_idx].qd = 0
+            #self.low_cmd.motor_cmd[motor_idx].dq = 0
 
-            #replaced qd with dq
+            #replaced dq with dq
             self.low_cmd.motor_cmd[motor_idx].dq = 0
 
             self.low_cmd.motor_cmd[motor_idx].kp = self.config.fixed_kps[i]
