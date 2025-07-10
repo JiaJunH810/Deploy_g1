@@ -360,7 +360,7 @@ class Controller:
 
         dof_angular_acceleration = (self.dqj - self.prev_dqj) / self.config.control_dt
 
-        commanded_torques = np.zeros(len(all_motor_indices), dtype=np.float32)
+        commanded_torques = np.zeros(len(target_dof_pos), dtype=np.float32)
 
         # Build low cmd
         for i in range(len(self.config.action_joint2motor_idx)):
@@ -381,7 +381,7 @@ class Controller:
             self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[i]
             self.low_cmd.motor_cmd[motor_idx].tau = 0
 
-            tau_val = all_kps[i] * (target_dof_pos[i] - q_current) - all_kds[i] * dq_current
+            tau_val = self.config.kps_start[i] * (target_dof_pos[i] - q_current) - self.config.kds_start[i] * dq_current
             
             commanded_torques[i] = tau_val
 
@@ -456,7 +456,7 @@ class Controller:
 
 
 
-     def save_recorded_data(self):
+    def save_recorded_data(self):
         print("正在保存记录的数据...")
         # 从policy_path中提取策略名称 (例如 "3Waist_RoundHouseKick_28000")
         policy_name = os.path.basename(self.config.policy_path).split('.')[0]
