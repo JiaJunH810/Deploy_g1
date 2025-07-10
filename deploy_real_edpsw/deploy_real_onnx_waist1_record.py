@@ -24,10 +24,11 @@ from unitree_sdk2py.utils.crc import CRC
 from common.command_helper import create_damping_cmd, create_zero_cmd, init_cmd_hg, init_cmd_go, MotorMode
 from common.rotation_helper import get_gravity_orientation, transform_imu_data
 from common.remote_controller import RemoteController, KeyMap
-from config_waist3 import Config
-
+from config import Config
+import sys
+sys.path.append("/home/zy/Deploy_g1/scripts")
 from scripts.joint_select_reorder import extend_joint, obs_match
-from scripts.elec_machinary_trans import oneWaist_2_threeWaist, threeWaist_2_oneWaist
+
 
 class Controller:
     def __init__(self, config: Config) -> None:
@@ -49,6 +50,17 @@ class Controller:
         # Initialize the policy network
         # pytorch script
         # self.policy = torch.jit.load(config.policy_path)
+
+        self.recorded_data = {
+            #'link_angular_acceleration': [],
+            'base_angular_vel': [],
+            'projected_gravity': [],
+            'dof_pos': [],
+            'dof_vel': [],
+            'dof_angular_acceleration':[],
+            'torque': []
+        }
+        self.is_recording = False # Flag to control recording
 
         # onnx
         self.ort_session = onnxruntime.InferenceSession(config.policy_path)
@@ -78,6 +90,7 @@ class Controller:
         self.ref_motion_phase_buf = np.zeros(1 * config.history_length, dtype=np.float32)
         self.base_lin_vel = np.array([0.0, 0.0, 0.0], dtype=np.float32)
 
+        self.prev_dqj = np.zeros(config.num_actions, dtype=np.float32)
 
         if config.msg_type == "hg":
             # g1 and h1_2 use the hg msg type
@@ -169,9 +182,9 @@ class Controller:
                 self.low_cmd.motor_cmd[motor_idx].mode = 1
                 self.low_cmd.motor_cmd[motor_idx].q = init_dof_pos[j] * (1 - alpha) + target_pos * alpha
                 # self.low_cmd.motor_cmd[motor_idx].q = target_pos * (1 - alpha)
-                self.low_cmd.motor_cmd[motor_idx].dq = 0
-                self.low_cmd.motor_cmd[motor_idx].kp = kps[j]
-                self.low_cmd.motor_cmd[motor_idx].kd = kds[j]
+                self.low_cmd.motor_cmd[motor_idx].qd = 0
+                self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[j]
+                self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[j]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
             self.resort_pub()
             # for i in range(35):
@@ -187,14 +200,14 @@ class Controller:
                 motor_idx = self.config.action_joint2motor_idx[i]
                 self.low_cmd.motor_cmd[motor_idx].mode = 1
                 self.low_cmd.motor_cmd[motor_idx].q = self.config.default_start_angles[i]
-                self.low_cmd.motor_cmd[motor_idx].dq = 0
+                self.low_cmd.motor_cmd[motor_idx].qd = 0
                 self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[i]
                 self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[i]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
             for i in range(len(self.config.fixed_joint2motor_idx)):
                 motor_idx = self.config.fixed_joint2motor_idx[i]
                 self.low_cmd.motor_cmd[motor_idx].q = self.config.fixed_target[i]
-                self.low_cmd.motor_cmd[motor_idx].dq = 0
+                self.low_cmd.motor_cmd[motor_idx].qd = 0
                 self.low_cmd.motor_cmd[motor_idx].kp = self.config.fixed_kps[i]
                 self.low_cmd.motor_cmd[motor_idx].kd = self.config.fixed_kds[i]
                 self.low_cmd.motor_cmd[motor_idx].tau = 0
@@ -202,6 +215,11 @@ class Controller:
             self.resort_pub()
             self.send_cmd(self.low_cmd)
             time.sleep(self.config.control_dt)
+            
+            self.is_recording = True
+            print('%'*20)
+            print('Start data recording')
+            print('%'*20)
         
     def resort_sub(self):
         # 将索引15~26的数据向前移两格
@@ -236,6 +254,8 @@ class Controller:
     def run(self):
         self.counter += 1
 
+        self.prev_dqj = self.dqj.copy() 
+
         # Get the current joint position and velocity
         for i in range(len(self.config.action_joint2motor_idx)):
             self.qj[i] = self.low_state.motor_state[self.config.action_joint2motor_idx[i]].q
@@ -261,38 +281,28 @@ class Controller:
         projected_gravity = get_gravity_orientation(quat)
         dof_pos = qj * self.config.dof_pos_scale
         dof_vel = dqj * self.config.dof_vel_scale
-        #### dev ####
-        dof_pos_bak = obs_match(dof_pos)
-        dof_vel_bak = obs_match(dof_vel)
-        #### dev ####
         base_ang_vel = ang_vel* self.config.ang_vel_scale
         
         self.ref_motion_phase += self.config.ref_motion_phase
         num_actions = self.config.num_actions
 
 
-        # print("Shapes of arrays to concatenate:")
-        # print(f"self.action shape: {np.array(self.action).shape}")
-        # print(f"base_ang_vel shape: {np.array(base_ang_vel).shape}")
-        # print(f"dof_pos shape: {np.array(dof_pos).shape}")
-        # print(f"dof_vel shape: {np.array(dof_vel).shape}")
-        # # print(f"history_obs_buf shape: {np.array(history_obs_buf).shape}")
-        # print(f"projected_gravity shape: {np.array(projected_gravity).shape}")
-        # print(f"[self.ref_motion_phase] shape: {np.array([self.ref_motion_phase]).shape}")
+        print("Shapes of arrays to concatenate:")
+        print(f"self.action shape: {np.array(self.action).shape}")
+        print(f"base_ang_vel shape: {np.array(base_ang_vel).shape}")
+        print(f"dof_pos shape: {np.array(dof_pos).shape}")
+        print(f"dof_vel shape: {np.array(dof_vel).shape}")
+        # print(f"history_obs_buf shape: {np.array(history_obs_buf).shape}")
+        print(f"projected_gravity shape: {np.array(projected_gravity).shape}")
+        print(f"[self.ref_motion_phase] shape: {np.array([self.ref_motion_phase]).shape}")
         
-        # oneWaist_2_threeWaist(dof_pos)
-        # oneWaist_2_threeWaist(dof_vel)
-        # oneWaist_2_threeWaist(self.action)
 
         history_obs_buf = np.concatenate((self.action_buf, self.ang_vel_buf, self.dof_pos_buf, self.dof_vel_buf, self.proj_g_buf, self.ref_motion_phase_buf), axis=-1, dtype=np.float32)
         
         print(f"history_obs_buf shape: {np.array(history_obs_buf).shape}")
 
         try:
-            # obs_buf = np.concatenate((self.action, base_ang_vel.flatten(), dof_pos, dof_vel, history_obs_buf, projected_gravity, [self.ref_motion_phase]), axis=-1, dtype=np.float32)
-            #### dev ####
-            obs_buf = np.concatenate((self.action, base_ang_vel.flatten(), dof_pos_bak, dof_vel_bak, history_obs_buf, projected_gravity, [self.ref_motion_phase]), axis=-1, dtype=np.float32)
-            #### dev ####
+            obs_buf = np.concatenate((self.action, base_ang_vel.flatten(), dof_pos, dof_vel, history_obs_buf, projected_gravity, [self.ref_motion_phase]), axis=-1, dtype=np.float32)
         except ValueError as e:
             print(f"Concatenation failed with error: {e}")
             print("Please ensure all arrays have the same number of dimensions (either all 1D or all 2D)")
@@ -310,27 +320,20 @@ class Controller:
         self.ang_vel_buf = np.concatenate((base_ang_vel.flatten(), self.ang_vel_buf[:-3]), axis=-1, dtype=np.float32)
         
         self.proj_g_buf = np.concatenate((projected_gravity, self.proj_g_buf[:-3] ), axis=-1, dtype=np.float32)
-        # self.dof_pos_buf = np.concatenate((dof_pos, self.dof_pos_buf[:-num_actions] ), axis=-1, dtype=np.float32)
-        # self.dof_vel_buf = np.concatenate((dof_vel, self.dof_vel_buf[:-num_actions] ), axis=-1, dtype=np.float32)
+        self.dof_pos_buf = np.concatenate((dof_pos, self.dof_pos_buf[:-num_actions] ), axis=-1, dtype=np.float32)
+        self.dof_vel_buf = np.concatenate((dof_vel, self.dof_vel_buf[:-num_actions] ), axis=-1, dtype=np.float32)
         self.action_buf = np.concatenate((self.action, self.action_buf[:-num_actions] ), axis=-1, dtype=np.float32)
-        #### dev ####
-        self.dof_pos_buf = np.concatenate((dof_pos_bak, self.dof_pos_buf[:-num_actions] ), axis=-1, dtype=np.float32)
-        self.dof_vel_buf = np.concatenate((dof_vel_bak, self.dof_vel_buf[:-num_actions] ), axis=-1, dtype=np.float32)
-        #### dev ####
         self.ref_motion_phase_buf = np.concatenate(([self.ref_motion_phase], self.ref_motion_phase_buf[:-1] ), axis=-1, dtype=np.float32)                
         
         
-        # self.read_data()
+        self.read_data()
         obs_tensor = torch.from_numpy(obs_buf).unsqueeze(0).cpu().numpy()
         self.action = np.squeeze(self.ort_session.run(None, {self.input_name: obs_tensor})[0])
-        #### dev ####
-        self.action[13] = 0.0
-        self.action[14] = 0.0
-        #### dev ####
-        # print(f"left ankle pitch: {self.action[4]}")
-        # print(f"left ankle roll: {self.action[5]}")
-        # print(f"right ankle pitch: {self.action[10]}")
-        # print(f"right ankle roll: {self.action[11]}")
+        
+        print(f"left ankle pitch: {self.action[4]}")
+        print(f"left ankle roll: {self.action[5]}")
+        print(f"right ankle pitch: {self.action[10]}")
+        print(f"right ankle roll: {self.action[11]}")
 
         # self.action[4] = 0
         # self.action[5] = 0
@@ -339,52 +342,74 @@ class Controller:
         # self.action[17] = 0
         # self.action[22] = 0
 
-        # threeWaist_2_oneWaist(self.action)
 
+        # self.action = self.policy(obs_tensor).detach().numpy().squeeze()
+        
         # transform action to target_dof_pos
-        #### dev ####
-        action_bak = extend_joint(self.action)
-        print("action_pre")
-        print(self.action)
-        print("action_post")
-        print(action_bak)
-        target_dof_pos = self.config.default_waist1_angles + action_bak * self.config.action_scale
-        #### dev ####
-
-        # target_dof_pos = self.config.default_waist3_angles + self.action * self.config.action_scale
+        target_dof_pos = self.config.default_waist1_angles + self.action * self.config.action_scale
+        # target_dof_pos = extend_joint(target_dof_pos)
         # print("#" * 100)
         # print(target_dof_pos.shape)
         # target_dof_pos[4] = 0
-        # target_dof_pos[5] = 0
+        target_dof_pos[5] = 0
         # target_dof_pos[10] = 0
-        # target_dof_pos[11] = 0
+        target_dof_pos[11] = 0
         target_dof_pos[17] = 0
         target_dof_pos[22] = 0
+
+
+        dof_angular_acceleration = (self.dqj - self.prev_dqj) / self.config.control_dt
+
+        commanded_torques = np.zeros(len(all_motor_indices), dtype=np.float32)
 
         # Build low cmd
         for i in range(len(self.config.action_joint2motor_idx)):
             motor_idx = self.config.action_joint2motor_idx[i]
+
+#possible problem
+            q_current = self.low_state.motor_state[motor_idx].q
+            dq_current = self.low_state.motor_state[motor_idx].dq
+
             self.low_cmd.motor_cmd[motor_idx].mode = 1
             self.low_cmd.motor_cmd[motor_idx].q = target_dof_pos[i]
+            #self.low_cmd.motor_cmd[motor_idx].qd = 0
+
+            #replaced qd with dq
             self.low_cmd.motor_cmd[motor_idx].dq = 0
-            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps[i]
-            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds[i]
+
+            self.low_cmd.motor_cmd[motor_idx].kp = self.config.kps_start[i]
+            self.low_cmd.motor_cmd[motor_idx].kd = self.config.kds_start[i]
             self.low_cmd.motor_cmd[motor_idx].tau = 0
 
-
+            tau_val = all_kps[i] * (target_dof_pos[i] - q_current) - all_kds[i] * dq_current
+            
+            commanded_torques[i] = tau_val
 
         for i in range(len(self.config.fixed_joint2motor_idx)):
             motor_idx = self.config.fixed_joint2motor_idx[i]
             self.low_cmd.motor_cmd[motor_idx].q = self.config.fixed_target[i]
+            #self.low_cmd.motor_cmd[motor_idx].qd = 0
+
+            #replaced qd with dq
             self.low_cmd.motor_cmd[motor_idx].dq = 0
+
             self.low_cmd.motor_cmd[motor_idx].kp = self.config.fixed_kps[i]
             self.low_cmd.motor_cmd[motor_idx].kd = self.config.fixed_kds[i]
             self.low_cmd.motor_cmd[motor_idx].tau = 0
         self.resort_pub()
 
-        # for i in range(len(self.low_cmd.motor_cmd)):
-        #     print(f"low_cmd.motor_cmd: {i}  ", self.low_cmd.motor_cmd[i])        
-        # send the command
+        if self.is_recording:
+            # base_angular_vel 是经过转换和缩放的 ang_vel
+            # dof_pos 是原始的 qj
+            # dof_vel 是原始的 dqj
+            self.recorded_data['base_angular_vel'].append(base_ang_vel.flatten().tolist())
+            self.recorded_data['projected_gravity'].append(projected_gravity.tolist())
+            self.recorded_data['dof_pos'].append(self.qj.tolist()) # 原始关节位置
+            self.recorded_data['dof_vel'].append(self.dqj.tolist()) # 原始关节速度
+            self.recorded_data['dof_angular_acceleration'].append(dof_angular_acceleration.tolist())
+            self.recorded_data['torque'].append(commanded_torques.tolist())
+
+
         self.send_cmd(self.low_cmd)
 
         time.sleep(self.config.control_dt)
@@ -430,16 +455,40 @@ class Controller:
             pickle.dump(self.data_dict, f)
 
 
+
+     def save_recorded_data(self):
+        print("正在保存记录的数据...")
+        # 从policy_path中提取策略名称 (例如 "3Waist_RoundHouseKick_28000")
+        policy_name = os.path.basename(self.config.policy_path).split('.')[0]
+        # 获取精确到时分秒的时间戳
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 定义保存数据的目录: /home/zy/Deploy_g1/legged_gym/data/
+        # 这里假设 LEGGED_GYM_ROOT_DIR 是 /home/zy/Deploy_g1/legged_gym
+        save_dir = os.path.join(LEGGED_GYM_ROOT_DIR, "data")
+        os.makedirs(save_dir, exist_ok=True) # 如果目录不存在则创建
+
+        # 构建文件名，例如: 3Waist_RoundHouseKick_28000_20250709_184730.npy
+        filename = os.path.join(save_dir, f"{policy_name}_{timestamp}.npy")
+
+        # 将所有列表数据转换为NumPy数组以便高效保存
+        for key, value in self.recorded_data.items():
+            self.recorded_data[key] = np.array(value, dtype=np.float32)
+
+        np.save(filename, self.recorded_data)
+        print(f"数据已成功保存至：{filename}")
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("net", type=str, help="network interface")
-    parser.add_argument("config", type=str, help="config file name in the configs folder", default="/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist3.yaml")
+    parser.add_argument("config", type=str, help="config file name in the configs folder", default="/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist1.yaml")
     args = parser.parse_args()
 
     # Load config
-    config_path = "/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist3.yaml" #args.config
+    config_path = "/home/zy/Deploy_g1/deploy_real_edpsw/configs/g1_real_waist1.yaml" #args.config
     config = Config(config_path)
 
     # Initialize DDS communication
@@ -455,15 +504,34 @@ if __name__ == "__main__":
     # Enter the default position state, press the A key to continue executing
     controller.default_pos_state()
 
-    while True:
-        try:
+    # while True:
+    #     try:
+    #         controller.run()
+    #         # Press the select key to exit
+    #         if controller.remote_controller.button[KeyMap.select] == 1:
+    #             break
+    #     except KeyboardInterrupt:
+    #         break
+    # # Enter the damping state
+    # create_damping_cmd(controller.low_cmd)
+    # controller.send_cmd(controller.low_cmd)
+    # print("Exit")
+    try:
+        while True:
             controller.run()
-            # Press the select key to exit
+            # 按下选择键 (Select) 退出
             if controller.remote_controller.button[KeyMap.select] == 1:
+                print("检测到Select键按下。正在退出...")
                 break
-        except KeyboardInterrupt:
-            break
-    # Enter the damping state
-    create_damping_cmd(controller.low_cmd)
-    controller.send_cmd(controller.low_cmd)
-    print("Exit")
+    except KeyboardInterrupt:
+        print("检测到键盘中断 (Ctrl+C)。正在退出...")
+    finally:
+        # 确保在程序退出前保存记录的数据
+        if controller.is_recording: # 仅当 recording 确实开始时才保存
+            controller.save_recorded_data()
+        # 进入阻尼状态
+        create_damping_cmd(controller.low_cmd)
+        controller.send_cmd(controller.low_cmd)
+        print("程序已退出。")
+
+

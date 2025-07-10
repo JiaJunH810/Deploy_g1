@@ -12,7 +12,7 @@ def create_damping_cmd(cmd: Union[LowCmdGo, LowCmdHG]):
     size = len(cmd.motor_cmd)
     for i in range(size):
         cmd.motor_cmd[i].q = 0
-        cmd.motor_cmd[i].qd = 0
+        cmd.motor_cmd[i].dq = 0
         cmd.motor_cmd[i].kp = 0
         cmd.motor_cmd[i].kd = 8
         cmd.motor_cmd[i].tau = 0
@@ -22,7 +22,7 @@ def create_zero_cmd(cmd: Union[LowCmdGo, LowCmdHG]):
     size = len(cmd.motor_cmd)
     for i in range(size):
         cmd.motor_cmd[i].q = 0
-        cmd.motor_cmd[i].qd = 0
+        cmd.motor_cmd[i].dq = 0
         cmd.motor_cmd[i].kp = 0
         cmd.motor_cmd[i].kd = 0
         cmd.motor_cmd[i].tau = 0
@@ -35,7 +35,7 @@ def init_cmd_hg(cmd: LowCmdHG, mode_machine: int, mode_pr: int):
     for i in range(size):
         cmd.motor_cmd[i].mode = 1
         cmd.motor_cmd[i].q = 0
-        cmd.motor_cmd[i].qd = 0
+        cmd.motor_cmd[i].dq = 0
         cmd.motor_cmd[i].kp = 0
         cmd.motor_cmd[i].kd = 0
         cmd.motor_cmd[i].tau = 0
@@ -55,7 +55,7 @@ def init_cmd_go(cmd: LowCmdGo, weak_motor: list):
         else:
             cmd.motor_cmd[i].mode = 0x0A
         cmd.motor_cmd[i].q = PosStopF
-        cmd.motor_cmd[i].qd = VelStopF
+        cmd.motor_cmd[i].dq = VelStopF
         cmd.motor_cmd[i].kp = 0
         cmd.motor_cmd[i].kd = 0
         cmd.motor_cmd[i].tau = 0
