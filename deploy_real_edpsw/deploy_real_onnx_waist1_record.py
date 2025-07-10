@@ -456,7 +456,7 @@ class Controller:
 
 
 
-     def save_recorded_data(self):
+    def save_recorded_data(self):
         print("正在保存记录的数据...")
         # 从policy_path中提取策略名称 (例如 "3Waist_RoundHouseKick_28000")
         policy_name = os.path.basename(self.config.policy_path).split('.')[0]

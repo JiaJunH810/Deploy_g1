@@ -331,10 +331,10 @@ class Controller:
         # target_dof_pos = extend_joint(target_dof_pos)
         # print("#" * 100)
         # print(target_dof_pos.shape)
-        # target_dof_pos[4] = 0
-        target_dof_pos[5] = 0
-        # target_dof_pos[10] = 0
-        target_dof_pos[11] = 0
+        # target_dof_pos[4] = 0     # ankle pitch
+        target_dof_pos[5] = 0       # ankle roll
+        # target_dof_pos[10] = 0    # ankle pitch
+        target_dof_pos[11] = 0      # ankle roll
         target_dof_pos[17] = 0
         target_dof_pos[22] = 0
 
