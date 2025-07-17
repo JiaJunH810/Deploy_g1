@@ -45,6 +45,7 @@ class Controller:
             'base_quat': [],
             'base_ang_vel': [],
             'smpl_joints': [],
+            'temperatures': [],
             'fps': 30,
         }
         # Initialize the policy network
@@ -401,6 +402,14 @@ class Controller:
         self.data_dict['base_quat'].append(quat)
         self.data_dict['base_ang_vel'].append(base_ang_vel.tolist())
         self.data_dict['smpl_joints'].append(smpl_joints.tolist())
+
+        temperatures = np.array(
+            [ self.low_state.motor_state[i].temperature
+              for i in self.config.action_joint2motor_idx ],
+            dtype=np.float32
+        )
+        self.data_dict['temperatures'].append(temperatures.tolist())
+
         with open(filename, 'wb') as f:
             pickle.dump(self.data_dict, f)
 
