@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     # define context variables
     control_decimation = 10
-    simulation_dt = 0.001
+    simulation_dt = 0.002   # edpsw这里为0.001
     
     simulation_duration = 60
     counter = 0
